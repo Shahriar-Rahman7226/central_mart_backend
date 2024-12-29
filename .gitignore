@@ -1,0 +1,22 @@
+# PyCharm files
+.idea/
+
+# Virtual environment
+venv/
+
+# Django migrations
+#*/migrations/
+
+# Environment variables file
+.env
+
+# Python packages
+__pycache__/
+*.pyc
+
+# Ignore node_modules directory
+node_modules/
+
+# Ignore log files
+*.log
+
