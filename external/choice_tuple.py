@@ -18,10 +18,10 @@ WeightUnit = (
     ('MILLILITRE', 'ml'),
 )
 
-StockStatus = (
-    ('IN_STOCK', 'in_stock'),
-    ('STOCK_OUT', 'stock_out'),
-)
+# StockStatus = (
+#     ('IN_STOCK', 'in_stock'),
+#     ('STOCK_OUT', 'stock_out'),
+# )
 
 VoucherType = (
     ('STARTER', 'starter'), 

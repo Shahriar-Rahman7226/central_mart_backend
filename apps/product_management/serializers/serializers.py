@@ -34,7 +34,7 @@ class SubCategoryListSerializer(ModelSerializer):
 
 class ProductCreateSerializer(ModelSerializer):
     weight_unit = serializers.ChoiceField(choices=WeightUnit)
-    stock_status = serializers.ChoiceField(choices=StockStatus)
+    # stock_status = serializers.ChoiceField(choices=StockStatus)
 
     class Meta:
         model = ProductModel

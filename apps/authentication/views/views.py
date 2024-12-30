@@ -184,7 +184,7 @@ class ForgetPasswordViewSet(ModelViewSet):
                 f"http://127.0.0.1:8000/authentication/confirm-password/{uid}/{token}/. "
                 "If you did not request this, please ignore this email."
             )
-        send_email(None, subject, message, request.user.id)
+        send_email(user_instance.id, subject, message, None)
         return Response({"detail": "Password reset email has been sent."}, status=status.HTTP_200_OK)
     
 
@@ -211,7 +211,7 @@ class ForgetPasswordViewSet(ModelViewSet):
                     return Response({'message': 'Given password is too weak.'}, status=status.HTTP_400_BAD_REQUEST)
                 subject = 'Central Mart'
                 message = 'Password reset was successful!'
-                send_email(None, subject, message, request.user.id)
+                send_email(user_instance.id, subject, message, None)
                 return Response({"message": "Password reset successfully"}, status=status.HTTP_200_OK)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

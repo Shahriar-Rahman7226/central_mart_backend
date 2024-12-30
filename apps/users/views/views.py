@@ -18,15 +18,15 @@ from external.query_helper import get_query_data
 @extend_schema(tags=['User Registration'])
 class UserResgistrationViewSet(ModelViewSet):
     model_class = UserModel
-    serializer_class = UserListSerializer
+    serializer_class = UserCreateSerializer
     queryset = model_class.objects.all()
     permission_classes = [permissions.IsAuthenticated]
     pagination_classes = CustomPagination
     lookup_field = 'id'
 
     def get_serializer_class(self):
-        if self.action =='create':
-            return UserCreateSerializer
+        if self.action in ['list', 'get_customer_list', 'retrieve']:
+            return UserListSerializer
         elif self.action =='update':
             return UserUpdateSerializer
         return self.serializer_class
@@ -96,7 +96,7 @@ class UserResgistrationViewSet(ModelViewSet):
         ]
     )
     @transaction.atomic()
-    @allowed_users(allowed_roles=[])
+    @allowed_users(allowed_roles=['ADMIN'])
     def create_manager(self, request, *args, **kwargs):
         queryset = self.queryset
         data = request.data
@@ -130,52 +130,6 @@ class UserResgistrationViewSet(ModelViewSet):
     @extend_schema(
         examples=[
             OpenApiExample(
-                "Create Customer",
-                value={
-                    "first_name": "string",
-                    "last_name": "string",
-                    "email": "string",
-                    "password": "string",
-                    "phone_number": "string",
-                },
-                request_only=True,
-            )
-        ]
-    )
-    @transaction.atomic()
-    def create_customer(self, request, *args, **kwargs):
-        queryset = self.queryset
-        data = request.data
-        if queryset.filter(email=data['email']).first():
-            return Response({'message': 'Email is already in use.'}, status=status.HTTP_400_)
-
-        if queryset.filter(phone_number=data['phone_number']).first():
-            return Response({'message': 'Phone number is already in use.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if 'password' in data.keys():
-            try:
-                validate_password(data['password'])
-                data['password'] = make_password(data['password'])
-            except ValidationError:
-                return Response({'message': 'Given password is too weak.'}, status=status.HTTP_400_BAD_REQUEST)
-        data['user_role'] = UserRole[2][0]
-
-        serializer_class = self.get_serializer_class()
-        serializer = serializer_class(data=data)
-        if serializer.is_valid(raise_exception=True):
-            user_obj = serializer.save()
-            subject = 'Central Mart'
-            message = 'Thankyou for registering with us!'
-            send_email(None, subject, message, request.user.id)
-            # send_sms()
-            return Response({'message': 'Customer created successfully'}, status=status.HTTP_201_CREATED)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-
-    @extend_schema(
-        examples=[
-            OpenApiExample(
                 "Update User",
                 value={
                     "first_name": "string",
@@ -190,7 +144,7 @@ class UserResgistrationViewSet(ModelViewSet):
     @transaction.atomic()
     def update(self, request, *args, **kwargs):
         data = request.data
-        instance = self.queryset.filter(id=kwargs['id']).first()
+        instance = self.queryset.filter(id=request.user.id).first()
 
         if not instance:
             return Response({'message': 'User does not exists'}, status=status.HTTP_400_BAD_REQUEST)
@@ -206,10 +160,10 @@ class UserResgistrationViewSet(ModelViewSet):
         serializer_class = self.get_serializer_class()
         serializer = serializer_class(instance=instance, data=request.data)
         if serializer.is_valid(raise_exception=True):
-            user_obj = serializer.save()
+            serializer.save()
             subject = 'Central Mart'
             message = 'Your profile information was updated successfully.'
-            send_email(user_obj.id, subject, message, None)
+            send_email(None, subject, message, request.user.id)
             # send_sms()
             return Response({'message': 'User updated successfully'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -269,4 +223,58 @@ class UserResgistrationViewSet(ModelViewSet):
         serializer = serializer_class(obj)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+@extend_schema(tags=['Customer Registration'])
+class CustomerResgistrationViewSet(ModelViewSet):
+    model_class = UserModel
+    serializer_class = UserCreateSerializer
+    queryset = model_class.objects.all()
+    permission_classes = []
+    pagination_classes = CustomPagination
+    lookup_field = 'id'
+
+    @extend_schema(
+        examples=[
+            OpenApiExample(
+                "Create Customer",
+                value={
+                    "first_name": "string",
+                    "last_name": "string",
+                    "email": "string",
+                    "password": "string",
+                    "phone_number": "string",
+                },
+                request_only=True,
+            )
+        ]
+    )
+    @transaction.atomic()
+    def create_customer(self, request, *args, **kwargs):
+        queryset = self.queryset
+        data = request.data
+        if queryset.filter(email=data['email']).first():
+            return Response({'message': 'Email is already in use.'}, status=status.HTTP_400_)
+
+        if queryset.filter(phone_number=data['phone_number']).first():
+            return Response({'message': 'Phone number is already in use.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if 'password' in data.keys():
+            try:
+                validate_password(data['password'])
+                data['password'] = make_password(data['password'])
+            except ValidationError:
+                return Response({'message': 'Given password is too weak.'}, status=status.HTTP_400_BAD_REQUEST)
+        data['user_role'] = UserRole[2][0]
+
+        serializer_class = self.serializer_class
+        serializer = serializer_class(data=data)
+        if serializer.is_valid(raise_exception=True):
+            user_obj = serializer.save()
+            subject = 'Central Mart'
+            message = 'Thankyou for registering with us!'
+            send_email(user_obj.id, subject, message, None)
+            # send_sms()
+            return Response({'message': 'Customer created successfully'}, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     

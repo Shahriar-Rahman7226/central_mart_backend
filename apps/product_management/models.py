@@ -1,5 +1,5 @@
 from django.db import models
-from external.choice_tuple import WeightUnit, StockStatus
+from external.choice_tuple import WeightUnit
 from abstract.base_model import CustomModel
 from apps.address.models import HubModel
 
@@ -41,7 +41,7 @@ class ProductModel(CustomModel):
     hub = models.ForeignKey(HubModel, related_name='product_hub', on_delete=models.SET_NULL, blank=True, null=True)
     weight = models.FloatField(blank=True, null=True)
     weight_unit = models.CharField(max_length=50, blank=True, null=True, choices=WeightUnit)
-    stock_status = models.CharField(max_length=50, blank=True, null=True, choices=StockStatus)
+    in_stock = models.BooleanField(blank=True, null=True, default=True)
     stock_level = models.PositiveIntegerField(blank=True, null=True)
     cost_price = models.FloatField(blank=True, null=True)
     regular_price = models.FloatField(blank=True, null=True)

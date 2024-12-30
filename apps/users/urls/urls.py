@@ -10,6 +10,6 @@ urlpatterns = [
                   path(r'', include(router.urls)),
                   path('create-admin/', UserResgistrationViewSet.as_view({'post': 'create_admin'})),
                   path('create-manager/', UserResgistrationViewSet.as_view({'post': 'create_manager'})),
-                  path('create-customer/', UserResgistrationViewSet.as_view({'post': 'create_customer'})),
+                  path('create-customer/', CustomerResgistrationViewSet.as_view({'post': 'create_customer'})),
                   path('get-customer-list/', UserResgistrationViewSet.as_view({'get': 'get_customer_list'})),
               ] 
