@@ -278,12 +278,35 @@ class AddressViewSet(ModelViewSet):
             return AddressCreateSerializer
         return self.serializer_class
 
+    @extend_schema(
+        examples=[
+            OpenApiExample(
+                "Create Address",
+                value={
+                    "label": "HOME",
+                    "area": "string",
+                    "street": "string",
+                    "house": "string",
+                    "apartment": "string",
+                    "floor": 0,
+                    "postal_code": "string",
+                    "description": "string",
+                    "label_name": "string",
+                    "division": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    "district": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    "sub_district": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                },
+                request_only=True,
+            )
+        ]
+    )
     def create(self, request, *args, **kwargs):
         data = request.data
         user_instance = UserModel.objects.filter(id=request.user.id)
         if not user_instance:
             return Response({'message': 'Invalid User'}, status=status.HTTP_400_BAD_REQUEST)
         
+        data['user'] = request.user.id
         data['label'] = data['label'].upper()
         if not data['label'] == 'OTHER':
             data['label_name'] = data['label']
@@ -298,12 +321,35 @@ class AddressViewSet(ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     
+    @extend_schema(
+        examples=[
+            OpenApiExample(
+                "Update Address",
+                value={
+                    "label": "HOME",
+                    "area": "string",
+                    "street": "string",
+                    "house": "string",
+                    "apartment": "string",
+                    "floor": 0,
+                    "postal_code": "string",
+                    "description": "string",
+                    "label_name": "string",
+                    "division": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    "district": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    "sub_district": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                },
+                request_only=True,
+            )
+        ]
+    )
     def update(self, request, *args, **kwargs):
         data = request.data
         instance = self.model_class.objects.filter(id=kwargs['id']).first()
         if not instance:
             return Response({'message': 'Invalid address'}, status=status.HTTP_400_BAD_REQUEST)
         
+        data['user'] = request.user.id
         data['label'] = data['label'].upper()
         if not data['label'] == 'OTHER':
             data['label_name'] = data['label']

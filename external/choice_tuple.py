@@ -49,7 +49,7 @@ PaymentMethodType = (
     # ('MASTER_CARD', 'master_card'),
 )
 
-CartStatus = (
-    ('PROCESSING', 'processing'),
-    ('ORDERED', 'ordered'),
-)
+# CartStatus = (
+#     ('PROCESSING', 'processing'),
+#     ('ORDERED', 'ordered'),
+# )

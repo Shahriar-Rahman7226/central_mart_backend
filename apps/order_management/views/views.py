@@ -4,7 +4,7 @@ from drf_spectacular.utils import extend_schema, OpenApiExample
 from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-
+import time
 from external.choice_tuple import WeightUnit
 from external.pagination import CustomPagination
 from external.swagger_query_params import set_query_params
@@ -48,7 +48,7 @@ class CartViewSet(ModelViewSet):
     )
     @allowed_users(allowed_roles=['CUSTOMER'])
     def create(self, request, *args, **kwargs):
-        expired_carts = self.queryset.filter(cart_status=False)
+        expired_carts = self.queryset.filter(cart_status=False, user=request.user.id)
         expired_carts.delete()
             
         request.data['user'] = request.user.id
@@ -107,7 +107,7 @@ class CartItemViewSet(ModelViewSet):
         if not product_instance:
             return Response({'message': 'Invalid product'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if product_instance.stock_status == 'STOCK_OUT':
+        if not product_instance.in_stock:
             return Response({'message': 'Product out of stock'}, status=status.HTTP_400_BAD_REQUEST)
         if data['quantity'] > product_instance.stock_level:
             return Response({'message': 'Sufficient quantity of product not available'}, status=status.HTTP_400_BAD_REQUEST)
@@ -121,7 +121,7 @@ class CartItemViewSet(ModelViewSet):
         if serializer.is_valid(raise_exception=True):
             cart_item_obj = serializer.save()
             if request.user.user_role in ['ADMIN', 'MANAGER']:
-                update_stock_status(cart_item_obj)
+                update_stock_status(None, cart_item_obj)
             return Response({'message': 'Item added successfully'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -145,20 +145,22 @@ class CartItemViewSet(ModelViewSet):
             return Response({'message': 'Invalid cart item'}, status=status.HTTP_400_BAD_REQUEST)
         if data['quantity'] == 0:
             if request.user.user_role in ['ADMIN', 'MANAGER']:
+                    update_stock_status(None, instance, True, True)
                     instance.previous_quantity = instance.quantity
-                    update_stock_status(instance, True, True)
             instance.delete()
             return Response({'message': 'Product successfully removed from the cart'}, status=status.HTTP_200_OK)
 
         if instance:
-            product_instance = ProductModel.objects.filter(id=instance.item, hub=instance.cart.hub).first()
+            product_instance = ProductModel.objects.filter(id=instance.item.id, hub=instance.cart.hub).first()
             if not product_instance:
                 return Response({'message': 'Invalid product'}, status=status.HTTP_400_BAD_REQUEST)
             
-            if product_instance.stock_status == 'STOCK_OUT':
+            if not product_instance.in_stock:
                 return Response({'message': 'Product out of stock'}, status=status.HTTP_400_BAD_REQUEST)
             if data['quantity'] > product_instance.stock_level:
                 return Response({'message': 'Sufficient quantity of product not available'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            print(product_instance.weight_unit)
                 
             data['cost'] = calc_product_cost(data['quantity'], product_instance.offered_price)
             data['weight'] = calc_product_weight(product_instance.weight, product_instance.weight_unit, data['quantity'])
@@ -169,7 +171,7 @@ class CartItemViewSet(ModelViewSet):
             if serializer.is_valid(raise_exception=True):
                 cart_item_obj=serializer.save()
                 if request.user.user_role in ['ADMIN', 'MANAGER']:
-                    update_stock_status(cart_item_obj, True)
+                    update_stock_status(None, cart_item_obj, True)
                 return Response({'message': 'Item quantity updated successfully'}, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -216,6 +218,8 @@ class VoucherViewSet(ModelViewSet):
             if data['start_date'] > data['expiry_date']:
                 return Response({'messaage': 'Voucher expiry date must be greater or equal than start date'}, status=status.HTTP_400_BAD_REQUEST)
             
+        if data['is_free']:
+            data['amount'] = -1
         serializer_class = self.get_serializer_class()
         serializer = serializer_class(data=request.data)
         if serializer.is_valid(raise_exception=True):
@@ -234,6 +238,8 @@ class VoucherViewSet(ModelViewSet):
             if data['start_date'] > data['expiry_date']:
                 return Response({'message': 'Voucher expiry date must be greater or equal than start date'}, status=status.HTTP_400_BAD_REQUEST)
             
+        if data['is_free']:
+            data['amount'] = -1
         serializer_class = self.get_serializer_class()
         serializer = serializer_class(instance=instance, data=request.data)
         if serializer.is_valid(raise_exception=True):
@@ -313,7 +319,6 @@ class OrderPaymentViewSet(ModelViewSet):
             OpenApiExample(
                 "Create Order Payment",
                 value={
-                    "user": "string",
                     "address": "string",
                     "payment_method": "string",
                     "voucher": "string",
@@ -326,23 +331,23 @@ class OrderPaymentViewSet(ModelViewSet):
     @allowed_users(allowed_roles=['CUSTOMER'])
     def create(self, request, *args, **kwargs):
         data = request.data
-
-        cart_instance = CartModel.objects.filter(id=data['cart'], status=False).first()
+        data['user'] = request.user.id
+        cart_instance = CartModel.objects.filter(id=data['cart'], cart_status=False).first()
         if not cart_instance:
             return Response({'message': 'Invalid cart'}, status=status.HTTP_400_BAD_REQUEST)
         cart_queryset = CartItemModel.objects.filter(cart=cart_instance)
-        data['hub'] = cart_instance.hub
+        data['hub'] = cart_instance.hub.id
        
         # sub total calculation
         data['sub_total'] = cart_queryset.aggregate(total_cost=Sum('cost'))['total_cost']
 
         # total weight calculation
-        data['total_weight'] = cart_queryset.aggregate(total_weight=Sum('weight'))['total_cost']
+        data['total_weight'] = cart_queryset.aggregate(total_weight=Sum('weight'))['total_weight']
 
         # voucher validation
         if data['voucher']:
             voucher_flag=False
-            voucher_instance = VoucherModel.objects.filter(id=data['vouhcer']).first()
+            voucher_instance = VoucherModel.objects.filter(id=data['voucher']).first()
             if voucher_instance:
                 if voucher_instance.minimum_amount:
                     if data['sub_total']>=voucher_instance.minimum_amount:
@@ -355,7 +360,7 @@ class OrderPaymentViewSet(ModelViewSet):
                             break
                 if voucher_instance.payment_method:
                     voucher_flag=False
-                    if data['payment']==voucher_instance.payment_method:
+                    if data['payment_method']==voucher_instance.payment_method:
                         voucher_flag=True  
             if not voucher_flag or not voucher_instance:
                 return Response({'message': 'Voucher is not available'}, status=status.HTTP_400_BAD_REQUEST)
@@ -363,16 +368,18 @@ class OrderPaymentViewSet(ModelViewSet):
                  if voucher_instance.is_free:
                     data['voucher_amount'] = - 1 
                  elif voucher_instance.amount: 
-                    data['voucher_amount'] = data['voucher'].amount
+                    data['voucher_amount'] = voucher_instance.amount
                  elif voucher_instance.percentage:
                     data['voucher_amount'] = data['sub_total'] * voucher_instance.percentage
 
+        address_instance = AddressModel.objects.filter(id=data['address'], user=request.user.id).first()
+
         # delivery fee calculation
-        data['ask_delivery_fee'] = calc_delivery_fee(data['total_weight'], data['hub'], data['address'].district, data['voucher_amount'])
+        data['ask_delivery_fee'] = calc_delivery_fee(data['total_weight'], data['hub'], address_instance.district, data['voucher_amount'])
         data['actual_delivery_fee'] = data['ask_delivery_fee']*(90/100)
         data['delivery_profit'] = data['ask_delivery_fee'] - data['actual_delivery_fee']        # 10% profit for now
 
-        data['total'] = data['sub_total'] - data['delivery_fee'] - (data['voucher_amount'] if data['voucher_amount'] != -1 else 0)
+        data['total'] = data['sub_total'] + data['ask_delivery_fee'] - (data['voucher_amount'] if data['voucher_amount'] != -1 else 0)
 
         data['delivery_duration'] = get_delivery_duration(data['hub'])
         data['order_status'] = OrderStatus[0][0]
@@ -384,38 +391,54 @@ class OrderPaymentViewSet(ModelViewSet):
             'message': "You can cancel or update your order address within the city, or contact us for changes within the next hour."
         }
         
+         # Generate a UUID and get the first 5 characters
+        unique_id = str(request.user.id)[:5]
+    
+        # Get the last 4 digits of the phone number
+        last_4_digits = request.user.phone_number[-4:]
 
+        # Get the current timestamp in milliseconds
+        timestamp = int(time.time() * 1000)
+    
+        # Construct the transaction ID
+        data['order_id'] = f"#CM{unique_id}{last_4_digits}{timestamp}"
+
+      
         order_history = []
         for item in cart_queryset:
             order_detail = f"Item: {item.item.title}, Quantity: {item.quantity}, Price: {item.cost}"
             order_history.append(order_detail)
 
-        data['order_details'] = "\n".join(order_history)
+        data['order_details']  = f"Order_id: {data['order_id']}\n"
+        data['order_details'] += "\n".join(order_history)
+        data['order_details']  += f"\n\nSubtotal: {data['sub_total']}"
+        data['order_details']  += f"\nDelivery Fee: {data['ask_delivery_fee']}"
+        data['order_details']  += f"\nVoucher Discount: {data['voucher_amount'] if data['voucher_amount'] != -1 else 0}"
+        data['order_details']  += f"\nTotal: {data['total']}"
 
-        order_details += f"\n\nSubtotal: {data['subtotal']}"
-        order_details += f"\nDelivery Fee: {data['delivery_fee']}"
-        order_details += f"\nVoucher Discount: {data['voucher_amount'] if data['voucher_amount'] != -1 else 0}"
-        order_details += f"\nTotal: {data['total']}"
+        # print(data['order_details'])
+        
 
         serializer_class = self.get_serializer_class()
-        serializer = serializer_class(data=request.data)
+        serializer = serializer_class(data=data)
         if serializer.is_valid(raise_exception=True):
             order_obj = serializer.save()
             update_stock_status(cart_queryset)
-            data = {
-                'user': cart_instance.user,
-                'hub': cart_instance.hub,
+            cart_data = {
+                # 'user': cart_instance.user.id,
+                # 'hub': cart_instance.hub.id,
                 'cart_status': True,
             }
-            cart_serializer = CartCreateSerializer(instance=cart_instance, data=data)
+            cart_serializer = CartCreateSerializer(instance=cart_instance, data=cart_data)
             if cart_serializer.is_valid(raise_exception=True):
-                cart_serializer.save()
+                obj=cart_serializer.save()
+                print(obj.cart_status)
             else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response(cart_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             subject = 'Central Mart'
-            message = (f"Order id: {order_obj.id}\n {order_obj.delivery_status}\n {order_obj.delivery_duration}\n"
+            message = (f"{order_obj.delivery_status}. {order_obj.delivery_duration}\n"
                        f"You can cancel or update your order address within the city, or contact us for changes within the next hour.\n"
-                       f"{order_obj.order_details}")
+                       f"\n{order_obj.order_details}")
             send_email(None, subject, message, request.user.id)
             # send_sms()
             return Response(response_data, status=status.HTTP_201_CREATED)
@@ -456,15 +479,15 @@ class OrderPaymentViewSet(ModelViewSet):
                     return Response({'message': 'Please state a reason for your cancellation'}, status=status.HTTP_200_OK)
                 else:
                     message='Your order was cancelled successfully'
-                    cart_instance = CartModel.objects.filter(id=order_instance.cart).first()
-                    cart_queryset = CartItemModel.objects.filter(cart=cart_instance)
-                    update_stock_status(cart_queryset, False, False, True)
+                    cart_instance = CartModel.objects.filter(id=order_instance.cart.id).first()
+                    cart_queryset = CartItemModel.objects.filter(cart=cart_instance.id)
+                    update_stock_status(cart_queryset, None, False, False, True)
                     cart_instance.delete()
             else:
                 return Response({'message': 'Invalid order status'}, status=status.HTTP_406_NOT_ACCEPTABLE)
             
         if data['address']:
-            address_instance = AddressModel.objects.filter(id=data['addrress'], user=order_instance.user).first()
+            address_instance = AddressModel.objects.filter(id=data['address'], user=order_instance.user.id).first()
             if not address_instance.district == order_instance.address.district:
                 return Response({'message': 'Address needs to inside the city'}, status=status.HTTP_400_BAD_REQUEST)
             else:

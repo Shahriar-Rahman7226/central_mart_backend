@@ -27,6 +27,7 @@ def calc_product_weight(weight, unit, quantity):
     if unit == 'KILOGRAM' or unit == 'LITRE':
         weight = weight*1000
     weight = weight*quantity
+    # print(unit)
     return weight
 
     
@@ -50,10 +51,12 @@ def get_vouchers(order_count, queryset=[]):
 def calc_delivery_fee(weight, hub, district, voucher):
     fee = 0
     inside_city = False
+    # print(voucher)
 
     if voucher == -1:
         return fee
-    hub_instance = HubModel.objects.filter(name=hub, district=district).first()
+    hub_instance = HubModel.objects.filter(id=hub, district=district).first()
+    # print(hub_instance.name)
 
     if  hub_instance:
         inside_city = True
@@ -109,29 +112,16 @@ def get_delivery_status(order_status):
         delivery_status_message = "Your order has been returned."
     return delivery_status_message
 
-def update_stock_status(cart_queryset, admin_update=False, admin_delete=False, customer_delete=False):
+def update_stock_status(cart_queryset, cart_instance=None, admin_update=False, admin_delete=False, customer_delete=False):
     product_queryset = ProductModel.objects.all()
-    if admin_delete==False:
-        for item in cart_queryset:
-            instance = product_queryset.filter(id=item.id).first()
-            if instance:
-                data = {
-                            'stock_level': instance.stock_level - (item.quantity if admin_update == False else item.quantity-item.previous_quantity),
-                            'order_count': instance.order_count + (1 if admin_update == False else 0)
-                        } 
-                serializer = ProductCreateSerializer(data=data, instance=instance)
-                if serializer.is_valid(raise_exception=True):
-                    serializer.save()
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                return Response({'message': 'Invalid product'}, status=status.HTTP_400_BAD_REQUEST)
-    elif customer_delete==True:
+    if customer_delete==True:
          for item in cart_queryset:
-            instance = product_queryset.filter(id=item.id).first()
+            instance = product_queryset.filter(id=item.item.id).first()
             if instance:
                 data = {
                             'stock_level': instance.stock_level + item.quantity,
-                            'order_count': instance.order_count - 1 
+                            'order_count': instance.order_count - 1,
+                            'weight_unit': instance.weight_unit if instance.weight_unit else ''
                         } 
                 serializer = ProductCreateSerializer(data=data, instance=instance)
                 if serializer.is_valid(raise_exception=True):
@@ -139,12 +129,46 @@ def update_stock_status(cart_queryset, admin_update=False, admin_delete=False, c
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             else:
                 return Response({'message': 'Invalid product'}, status=status.HTTP_400_BAD_REQUEST) 
+    elif admin_delete==False:
+        if cart_instance:
+            instance = product_queryset.filter(id=cart_instance.item.id).first()
+            if instance:
+                data = {
+                            'stock_level': instance.stock_level - (cart_instance.quantity if admin_update == False else cart_instance.quantity-cart_instance.previous_quantity),
+                            'order_count': instance.order_count + (1 if admin_update == False else 0),
+                            'weight_unit': instance.weight_unit if instance.weight_unit else ''
+                        } 
+                serializer = ProductCreateSerializer(data=data, instance=instance)
+                if serializer.is_valid(raise_exception=True):
+                    serializer.save()
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({'message': 'Invalid product'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            for item in cart_queryset:
+                instance = product_queryset.filter(id=item.item.id).first()
+                if instance:
+                    data = {
+                                'stock_level': instance.stock_level - (item.quantity if admin_update == False else item.quantity-item.previous_quantity),
+                                'order_count': instance.order_count + (1 if admin_update == False else 0),
+                                'weight_unit': instance.weight_unit if instance.weight_unit else ''
+                            } 
+                    serializer = ProductCreateSerializer(data=data, instance=instance)
+                    if serializer.is_valid(raise_exception=True):
+                        obj = serializer.save()
+                        print(obj)
+                    else:
+                        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    return Response({'message': 'Invalid product'}, status=status.HTTP_400_BAD_REQUEST)
+    
     else:
-        instance = product_queryset.filter(id=cart_queryset.id).first()
+        instance = product_queryset.filter(id=cart_instance.item.id).first()
         if instance:
             data = {
-                        'stock_level': instance.stock_level + item.previous_quantity,
-                        'order_count': instance.order_count - 1
+                        'stock_level': instance.stock_level + cart_instance.previous_quantity,
+                        'order_count': instance.order_count - 1,
+                        'weight_unit': instance.weight_unit if instance.weight_unit else ''
                     } 
             serializer = ProductCreateSerializer(data=data, instance=instance)
             if serializer.is_valid(raise_exception=True):
@@ -154,7 +178,7 @@ def update_stock_status(cart_queryset, admin_update=False, admin_delete=False, c
             return Response({'message': 'Invalid product'}, status=status.HTTP_400_BAD_REQUEST)
 
 
-def update_user_order_count(order_status, user):
+def update_user_order_count(user):
         data = {
                     'order_count': user.order_count +1
         }
