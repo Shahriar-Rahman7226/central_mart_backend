@@ -50,7 +50,6 @@ class DivisionViewSet(ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-    @allowed_users(allowed_roles=['ADMIN', 'MANAGER'])
     def list(self, request, *args, **kwargs):
         queryset = self.queryset
         page = self.paginate_queryset(queryset)
@@ -63,7 +62,6 @@ class DivisionViewSet(ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-    @allowed_users(allowed_roles=['ADMIN', 'MANAGER'])
     def retrieve(self, request, *args, **kwargs):
         queryset = self.queryset
         obj = queryset.filter(id=kwargs['id']).first()
@@ -114,11 +112,12 @@ class DistrictViewSet(ModelViewSet):
     @extend_schema(parameters=set_query_params('list', [
         {"name": 'division', "description": 'Filter by division Id'},
     ]))
-    @allowed_users(allowed_roles=['ADMIN', 'MANAGER'])
     def list(self, request, *args, **kwargs):
         queryset = self.queryset
         params = request.query_params
-
+        if request.user.user_role == 'CUSTOMER':
+            if not params:
+                return Response({'message': 'Division is required.'}, status=status.HTTP_400_BAD_REQUEST) 
         queryset=get_query_data(params, queryset)
         page = self.paginate_queryset(queryset)
         serializer_class = self.get_serializer_class()
@@ -130,7 +129,6 @@ class DistrictViewSet(ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-    @allowed_users(allowed_roles=['ADMIN', 'MANAGER'])
     def retrieve(self, request, *args, **kwargs):
         queryset = self.queryset
         obj = queryset.filter(id=kwargs['id']).first()
@@ -180,10 +178,12 @@ class SubDistrictViewSet(ModelViewSet):
         {"name": 'division', "description": 'Filter by division Id'},
         {"name": 'district', "description": 'Filter by district Id'},
     ]))
-    @allowed_users(allowed_roles=['ADMIN', 'MANAGER'])
     def list(self, request, *args, **kwargs):
         queryset = self.queryset
         params = request.query_params
+        if request.user.user_role == 'CUSTOMER':
+            if not params:
+                return Response({'message': 'Division or district is required.'}, status=status.HTTP_400_BAD_REQUEST) 
 
         queryset=get_query_data(params, queryset)
         page = self.paginate_queryset(queryset)
@@ -195,7 +195,7 @@ class SubDistrictViewSet(ModelViewSet):
         serializer = serializer_class(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @allowed_users(allowed_roles=['ADMIN', 'MANAGER'])
+
     def retrieve(self, request, *args, **kwargs):
         queryset = self.queryset
         obj = queryset.filter(id=kwargs['id']).first()

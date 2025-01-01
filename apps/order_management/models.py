@@ -13,7 +13,7 @@ class CartModel(CustomModel):
     cart_status = models.BooleanField(blank=True, null=True, default=False)
 
     def __str__(self):
-        return f"{self.user.first_name if self.user else ''} {self.user.last_name if self.user else ''} -- {self.hub.name if self.hub else ''} -- {self.cart_status if self.cart_status else ''}"
+        return f"{self.user.first_name if self.user else ''} {self.user.last_name if self.user else ''} -- {self.hub.name if self.hub else ''} -- {self.cart_status if self.cart_status else 'No'}"
 
     class Meta:
         db_table = 'cart_models'
@@ -62,7 +62,7 @@ class OrderPaymentModel(CustomModel):
     order_id = models.CharField(max_length=100, blank=True, null=True)
     user = models.ForeignKey(UserModel, related_name='order_payment_user', on_delete=models.CASCADE, blank=True, null=True)
     address = models.ForeignKey(AddressModel, related_name='order_payment_address', on_delete=models.CASCADE, blank=True, null=True)
-    cart = models.ForeignKey(CartModel, related_name='order_cart', on_delete=models.SET_NULL, blank=True, null=True)
+    cart = models.CharField(max_length=100, blank=True, null=True)
     hub = models.ForeignKey(HubModel, related_name='order_payment_hub', on_delete=models.SET_NULL, blank=True, null=True)
     payment_method = models.CharField(max_length=50, choices=PaymentMethodType, default='CASH', blank=True, null=True)
     sub_total = models.FloatField(blank=True, null=True)
@@ -83,7 +83,7 @@ class OrderPaymentModel(CustomModel):
     order_details = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.user.first_name if self.user else ''} {self.user.last_name if self.user else ''} -- {self.hub.name if self.hub else ''} -- {self.order_id if self.order_id else ''}"
+        return f"{self.user.first_name if self.user else ''} {self.user.last_name if self.user else ''} -- {self.hub.name if self.hub else ''} -- {self.order_id if self.order_id else ''} -- {self.order_status if self.order_status else ''}"
 
     class Meta:
         db_table = 'order_payment_models'

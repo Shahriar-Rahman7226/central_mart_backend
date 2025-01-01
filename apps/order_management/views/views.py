@@ -465,45 +465,44 @@ class OrderPaymentViewSet(ModelViewSet):
         order_instance = OrderPaymentModel.objects.filter(id=kwargs['id']).first()
         if not order_instance:
             return Response({'message': 'Invalid order'}, status=status.HTTP_400_BAD_REQUEST)
-
-        current_time = timezone.now()
-    
-        one_hour_ago = current_time - timedelta(hours=1)
-    
-        if order_instance.created_at < one_hour_ago:
-            return Response({'message': 'Sorry, You cannot make any changed to the order now'}, status=status.HTTP_200_OK)
+        data['payment_method'] = order_instance.payment_method
         
-        if data['order_status']:
-            if data['order_status']=='CANCELLED':
-                if not data['reason']:
-                    return Response({'message': 'Please state a reason for your cancellation'}, status=status.HTTP_200_OK)
-                else:
-                    message='Your order was cancelled successfully'
-                    cart_instance = CartModel.objects.filter(id=order_instance.cart.id).first()
-                    cart_queryset = CartItemModel.objects.filter(cart=cart_instance.id)
-                    update_stock_status(cart_queryset, None, False, False, True)
-                    cart_instance.delete()
-            else:
-                return Response({'message': 'Invalid order status'}, status=status.HTTP_406_NOT_ACCEPTABLE)
-            
-        if data['address']:
-            address_instance = AddressModel.objects.filter(id=data['address'], user=order_instance.user.id).first()
+        current_time = timezone.now()
+        time_out = current_time - timedelta(minutes=15)
+        if order_instance.created_at < time_out:
+            return Response({'message': 'Sorry, You cannot make any changed to the order now'}, status=status.HTTP_406_NOT_ACCEPTABLE)
+        
+        if data.get('address'):
+            address_instance = AddressModel.objects.filter(id=data['address'], user=request.user.id).first()
             if not address_instance.district == order_instance.address.district:
                 return Response({'message': 'Address needs to inside the city'}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 message='Your order address was updated successfully'
+                data['order_status'] = order_instance.order_status
+        elif data['order_status']=='CANCELLED':
+                if not data['reason']:
+                    return Response({'message': 'Please state a reason for your cancellation'}, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    cart_instance = CartModel.objects.filter(id=order_instance.cart).first()
+                    cart_queryset = CartItemModel.objects.filter(cart=cart_instance.id)
+                    update_stock_status(cart_queryset, None, False, False, True)
+                    cart_instance.delete()
+                    data['cart'] = ''
+                    data['delivery_status'] = get_delivery_status(data['order_status'])
+                    message=data['delivery_status']
             
         serializer_class = self.get_serializer_class()
         serializer = serializer_class(instance=order_instance, data=data)
         if serializer.is_valid(raise_exception=True): 
                 order_obj=serializer.save()
                 subject = 'Central Mart'
-                message = f"Order id: {order_obj.id}\n {message}"
+                message = f"Order id: {order_obj.order_id}\n {message}"
                 send_email(None, subject, message, request.user.id)
                 # send_sms()
                 return Response(message, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST )
-            
+
+
     @extend_schema(
         examples=[
             OpenApiExample(

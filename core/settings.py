@@ -42,6 +42,7 @@ CUSTOM_APPS = [
     'apps.address',
     'apps.product_management',
     'apps.order_management',
+    'apps.dashboard',
 ]
 
 INSTALLED_LIBRARIES = [
