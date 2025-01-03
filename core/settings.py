@@ -29,10 +29,12 @@ DEBUG = config('DEBUG', cast=bool, default=True)
 
 ALLOWED_HOSTS = ['*']
 
-# CSRF_TRUSTED_ORIGINS = [
-#     'http://localhost:3000', 
-#     'http://127.0.0.1:3000', 
-# ]
+CORS_ALLOW_ALL_ORIGINS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000', 
+    'http://127.0.0.1:3000', 
+]
 
 # Application definition
 
@@ -164,7 +166,7 @@ STATIC_ROOT = BASE_DIR / 'static/collect_static'
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-MAX_UPLOAD_SIZE = 20 * 1024 * 1024
+# MAX_UPLOAD_SIZE = 20 * 1024 * 1024
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -263,3 +265,5 @@ EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+
+SITE_URL='http://127.0.0.1:8000'

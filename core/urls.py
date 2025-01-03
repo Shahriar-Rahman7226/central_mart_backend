@@ -35,7 +35,7 @@ urlpatterns = [
     path('address/', include('apps.address.urls.urls')),
     path('product_management/', include('apps.product_management.urls.urls')),
     path('order_management/', include('apps.order_management.urls.urls')),
-    # path('dashboard/', include('apps.dashboard.urls.urls')),
+    path('dashboard/', include('apps.dashboard.urls.urls')),
 ] + swagger_urlpatterns
 
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
