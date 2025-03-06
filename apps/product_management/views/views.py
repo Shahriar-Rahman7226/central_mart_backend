@@ -20,7 +20,7 @@ class CategoryViewSet(ModelViewSet):
     model_class = CategoryModel
     serializer_class = CategoryListSerializer
     queryset = model_class.objects.all()
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
     pagination_classes = CustomPagination
     lookup_field = 'id'
 
@@ -148,7 +148,7 @@ class ProductViewSet(ModelViewSet):
     model_class = ProductModel
     serializer_class = ProductListSerializer
     queryset = model_class.objects.all()
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
     pagination_classes = CustomPagination
     lookup_field = 'id'
 
@@ -318,9 +318,13 @@ class ProductViewSet(ModelViewSet):
     ]))
     def list(self, request, *args, **kwargs):
         queryset = self.queryset
-        params = request.query_params
+        params = request.query_params.copy()
         if 'hub' not in params:
-            params['hub'] = 'DHAKA'
+            hub_instance = HubModel.objects.filter(name='Dhaka').first()
+            if not hub_instance:
+                return Response({'message': 'Invalid Hub'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                params['hub'] = hub_instance.id
 
         queryset=get_query_data(params, queryset)
         page = self.paginate_queryset(queryset)
